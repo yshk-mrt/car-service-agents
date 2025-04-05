@@ -74,8 +74,11 @@ class CrossCrewCommunicationTool(BaseTool):
         if not target_crew_id or not message:
             return "Error: 'target_crew_id' and 'message' are required inputs."
 
-        agent_name = getattr(self, 'agent', None)
-        sender = "Unknown" if agent_name is None else self.agent.role
+        # Fix: Get agent information from proper CrewAI context
+        try:
+            sender = self.agent.role if hasattr(self, 'agent') and self.agent else "Customer"
+        except:
+            sender = "Customer"  # Fallback name
         
         log_tool(self.name, f"{sender} → {target_crew_id}")
 
@@ -263,7 +266,6 @@ task1_prepare_request = Task(
     """,
     expected_output="A plain text message containing the car model, issues, and availability.",
     agent=customer_agent,
-    # output_file="customer_request.txt" # Optional: save the prepared message
 )
 
 task2_send_request_and_get_response = Task(
@@ -272,23 +274,18 @@ task2_send_request_and_get_response = Task(
         Use the 'Cross-Crew Communication Tool' to send this message to the crew registered
         with the ID 'shop_crew_main'.
 
-        When using the Cross-Crew Communication Tool, you MUST provide these two parameters:
-        1. 'target_crew_id': which should be exactly 'shop_crew_main'
+        When using the Cross-Crew Communication Tool, you MUST provide these exact parameters:
+        1. 'target_crew_id': "shop_crew_main"  (EXACTLY this string, do not attempt any other IDs)
         2. 'message': which should be the complete message from your previous task
 
-        Example of how to use the tool correctly:
-        ```
-        target_crew_id: "shop_crew_main"
-        message: "Hello, I have a 2020 Subaru Outback and I'm experiencing issues..."
-        ```
-
-        Do not modify or summarize the message - send the exact message you created in the previous task.
+        Do not attempt to use any other target_crew_id values like "auto_repair_shop_123" or "auto_shop_001".
+        ONLY 'shop_crew_main' will work.
         
         Your final output should be ONLY the response received back from the 'shop_crew_main'.
     """,
     expected_output="The response message received from the shop crew via the communication tool.",
     agent=customer_agent,
-    context=[task1_prepare_request] # Depends on the output of the first task
+    context=[task1_prepare_request]
 )
 
 # 4. Create Customer Crew
@@ -522,6 +519,8 @@ log_header("Registering Crews")
 crew_registry['shop_crew_main'] = shop_crew
 # Register the mechanic crew
 crew_registry['mechanic_crew'] = mechanic_crew
+# Add car_owner as an alias for customer_crew
+crew_registry['car_owner'] = customer_crew
 log_step("Registry", f"Registered crews: {list(crew_registry.keys())}")
 
 
