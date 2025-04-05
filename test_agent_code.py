@@ -319,7 +319,7 @@ shop_crew = Crew(
     agents=[shop_manager_agent],
     tasks=[task_process_request, task_assign_to_mechanic, task_direct_crew_communication],
     process=Process.sequential,
-    verbose=1
+    verbose=0
 )
 
 # =============================
@@ -386,7 +386,7 @@ mechanic_agent = Agent(
     backstory="Experienced mechanic with 15 years in the automotive repair industry. Known for thoroughness and attention to detail.",
     llm=openrouter_llm,
     tools=[maintenance_tool, mechanic_comm_tool, cross_crew_tool],
-    verbose=True,
+    verbose=False,
     allow_delegation=False
 )
 
@@ -480,7 +480,7 @@ mechanic_crew = Crew(
     agents=[mechanic_agent],
     tasks=[task_report_availability, task_perform_maintenance, task_report_status, task_respond_to_manager],
     process=Process.sequential,
-    verbose=1
+    verbose=0
 )
 
 # =============================
