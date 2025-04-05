@@ -25,6 +25,33 @@ openrouter_llm = LLM(
 # Holds references to instantiated crews for same-process communication
 crew_registry = {}
 
+# --- ログ出力のためのユーティリティ関数 ---
+def log_header(title):
+    """Simple section header"""
+    print(f"\n== {title} ==")
+
+def log_step(sender, message):
+    """Concise step log"""
+    print(f"[{sender}] {message}")
+
+def log_tool(tool_name, action, details=None):
+    """Tool execution log - shortened"""
+    if details and len(details) > 50:
+        details = details[:47] + "..."
+    print(f"→ {tool_name}: {action}" + (f" ({details})" if details else ""))
+
+def log_response(title, message):
+    """Display response message, handling different types"""
+    # Handle CrewOutput objects and convert to string
+    message_str = str(message)
+    
+    # Format the message
+    lines = message_str.split('\n')
+    formatted_message = lines[0]
+    if len(lines) > 1:
+        formatted_message += "..."
+    print(f"{title}: {formatted_message}")
+
 # --- Define Custom Tools ---
 
 # Pydantic model for CrossCrewCommunicationTool input validation
@@ -47,26 +74,25 @@ class CrossCrewCommunicationTool(BaseTool):
         if not target_crew_id or not message:
             return "Error: 'target_crew_id' and 'message' are required inputs."
 
-        # Check if the agent is assigned to this tool
         agent_name = getattr(self, 'agent', None)
         sender = "Unknown" if agent_name is None else self.agent.role
         
-        print(f"\n MOCK TOOL LOG: Attempting communication from '{sender}' to Crew ID '{target_crew_id}'...")
+        log_tool(self.name, f"{sender} → {target_crew_id}")
 
         target_crew = crew_registry.get(target_crew_id)
         if not target_crew:
-            print(f" MOCK TOOL ERROR: Target Crew '{target_crew_id}' not found in registry.")
+            log_tool(self.name, "ERROR", f"Crew '{target_crew_id}' not found")
             return f"Error: Target Crew '{target_crew_id}' not found."
 
-        # Trigger the target crew's kickoff method with the message as input
-        # The target crew's tasks should be designed to handle an input named 'received_message' (or similar)
         try:
-            # Note: This is synchronous. The current crew waits for the target crew to finish.
+            # verbose=0でクルーを実行し、出力を抑制
+            original_verbose = target_crew.verbose
+            target_crew.verbose = 0
             response = target_crew.kickoff(inputs={'received_message': message})
-            print(f" MOCK TOOL LOG: Received response from '{target_crew_id}': {response}")
-            return f"Response from {target_crew_id}: {response}"
+            target_crew.verbose = original_verbose
+            return response
         except Exception as e:
-            print(f" MOCK TOOL ERROR: Error during kickoff of target crew '{target_crew_id}': {e}")
+            log_tool(self.name, "ERROR", f"{e}")
             return f"Error communicating with {target_crew_id}: {e}"
 
 # Simple Tools for the Shop Crew
@@ -75,7 +101,7 @@ class QuoteGeneratorTool(BaseTool):
     description: str = "Generates a price quote and estimated repair time based on a car problem description."
 
     def _run(self, problem_description: str) -> str:
-        print(f"\n MOCK TOOL LOG (Shop): Generating quote for '{problem_description}'...")
+        log_tool(self.name, f"Generating quote")
         cost = 300 + random.randint(0, 700)
         days = 1 + random.randint(0, 4)
         if "brake" in problem_description.lower():
@@ -89,7 +115,7 @@ class QuoteGeneratorTool(BaseTool):
              days += 0
         time.sleep(0.2) # Simulate work
         quote = f"Quote generated: Estimated cost ${cost}, Estimated time {days} business days."
-        print(f" MOCK TOOL LOG (Shop): {quote}")
+        log_tool(self.name, "Quote ready", f"${cost}, {days} days")
         return quote
 
 class AvailabilityCheckerTool(BaseTool):
@@ -97,7 +123,7 @@ class AvailabilityCheckerTool(BaseTool):
     description: str = "Checks the shop's next available appointment slot."
 
     def _run(self, **kwargs) -> str:
-        print(f"\n MOCK TOOL LOG (Shop): Checking availability...")
+        log_tool(self.name, "Checking availability")
         # Simulate some simple availability logic
         available_slots = [
             "Next Monday afternoon",
@@ -107,7 +133,7 @@ class AvailabilityCheckerTool(BaseTool):
         ]
         availability = random.choice(available_slots)
         time.sleep(0.1)
-        print(f" MOCK TOOL LOG (Shop): Availability: {availability}")
+        log_tool(self.name, "Found slot", availability)
         return f"Shop Availability: {availability}"
 
 # Tool for Shop Manager to communicate with Mechanic
@@ -116,7 +142,7 @@ class ManagerToMechanicTool(BaseTool):
     description: str = "Allows the shop manager to communicate with the mechanic."
 
     def _run(self, message_type: str, details: str) -> str:
-        print(f"\n MOCK TOOL LOG (Manager): Sending {message_type} message to mechanic: {details}")
+        log_tool(self.name, f"Sending {message_type} message", details)
         time.sleep(0.2)  # Simulate communication delay
         
         responses = {
@@ -126,21 +152,70 @@ class ManagerToMechanicTool(BaseTool):
         }
         
         response = responses.get(message_type.lower(), "Message received and acknowledged.")
-        print(f" MOCK TOOL LOG (Mechanic): {response}")
+        log_tool(self.name, "Mechanic response", response)
         return f"Mechanic response: {response}"
+
+# Simple Tools for the Shop Crew
+class MaintenanceCheckerTool(BaseTool):
+    name: str = "Maintenance Checker Tool"
+    description: str = "Performs maintenance checks and sometimes discovers additional repair needs."
+
+    def _run(self, maintenance_task: str) -> str:
+        log_tool(self.name, f"Checking '{maintenance_task}'")
+        time.sleep(0.3)  # Simulate work
+        
+        # Randomly determine if additional repairs are needed (70% chance)
+        additional_repair_needed = random.random() < 0.7
+        
+        if additional_repair_needed:
+            additional_issues = [
+                "discovered worn brake pads that need replacement",
+                "found significant oil leak from the gasket",
+                "noticed the timing belt is showing signs of wear and should be replaced soon",
+                "detected an issue with the alternator that wasn't in the original assessment",
+                "found rusted exhaust components that need attention"
+            ]
+            issue = random.choice(additional_issues)
+            log_tool(self.name, "FOUND ISSUE", issue)
+            return f"While performing {maintenance_task}, {issue}. Additional repair is necessary."
+        else:
+            log_tool(self.name, "No issues found")
+            return f"Maintenance task '{maintenance_task}' completed successfully. No additional issues found."
+
+# Define a tool for mechanic to communicate with shop manager
+class MechanicToManagerTool(BaseTool):
+    name: str = "Mechanic-Manager Communication Tool"
+    description: str = "Sends a message from the mechanic to the shop manager about availability or status updates."
+
+    def _run(self, message_type: str, details: str) -> str:
+        log_tool(self.name, f"Sending {message_type} update", details)
+        time.sleep(0.2)  # Simulate communication delay
+        
+        # Could be enhanced to actually send to manager agent in a more complex setup
+        responses = {
+            "availability": "Availability update received and logged.",
+            "status": "Status update received and logged.",
+            "repair": "Additional repair notification received and processed."
+        }
+        
+        response = responses.get(message_type.lower(), "Message received.")
+        log_tool(self.name, "Manager response", response)
+        return f"Manager response: {response}"
 
 # --- Instantiate Tools ---
 cross_crew_tool = CrossCrewCommunicationTool()
 quote_tool = QuoteGeneratorTool()
 availability_tool = AvailabilityCheckerTool()
 manager_to_mechanic_tool = ManagerToMechanicTool()
+maintenance_tool = MaintenanceCheckerTool()
+mechanic_comm_tool = MechanicToManagerTool()
 
 
 # ==================================
 # --- Customer Crew Definition ---
 # ==================================
 
-print("\n--- Defining Customer Crew ---")
+log_header("Defining Customer Crew")
 
 # 1. Load Customer Config (same as before)
 config_file = "customer_config.json"
@@ -148,7 +223,13 @@ customer_data = {}
 try:
     with open(config_file, 'r') as f:
         customer_data = json.load(f)
-    print(f" Loaded customer data from {config_file}")
+    log_step("Config", f"Loaded customer data from {config_file}")
+    # 顧客データをわかりやすく表示
+    for key, value in customer_data.items():
+        if key == "availability":
+            print(f"  - {key}: {', '.join(value)}")
+        else:
+            print(f"  - {key}: {value}")
 except Exception as e:
     print(f"ERROR loading {config_file}: {e}")
     exit()
@@ -215,14 +296,14 @@ customer_crew = Crew(
     agents=[customer_agent],
     tasks=[task1_prepare_request, task2_send_request_and_get_response],
     process=Process.sequential,
-    verbose=1 # Set verbosity as needed
+    verbose=0  # 詳細出力を無効化
 )
 
 # =============================
 # --- Shop Crew Definition ---
 # =============================
 
-print("\n--- Defining Shop Crew ---")
+log_header("Defining Shop Crew")
 
 # 1. Define Shop Agent(s)
 shop_manager_agent = Agent(
@@ -319,65 +400,14 @@ shop_crew = Crew(
     agents=[shop_manager_agent],
     tasks=[task_process_request, task_assign_to_mechanic, task_direct_crew_communication],
     process=Process.sequential,
-    verbose=0
+    verbose=0  # 詳細出力を無効化
 )
 
 # =============================
 # --- Mechanic Crew Definition ---
 # =============================
 
-print("\n--- Defining Mechanic Crew ---")
-
-# Define a maintenance checker tool that sometimes reports additional repairs are needed
-class MaintenanceCheckerTool(BaseTool):
-    name: str = "Maintenance Checker Tool"
-    description: str = "Performs maintenance checks and sometimes discovers additional repair needs."
-
-    def _run(self, maintenance_task: str) -> str:
-        print(f"\n MOCK TOOL LOG (Mechanic): Performing maintenance check for '{maintenance_task}'...")
-        time.sleep(0.3)  # Simulate work
-        
-        # Randomly determine if additional repairs are needed (70% chance)
-        additional_repair_needed = random.random() < 0.7
-        
-        if additional_repair_needed:
-            additional_issues = [
-                "discovered worn brake pads that need replacement",
-                "found significant oil leak from the gasket",
-                "noticed the timing belt is showing signs of wear and should be replaced soon",
-                "detected an issue with the alternator that wasn't in the original assessment",
-                "found rusted exhaust components that need attention"
-            ]
-            issue = random.choice(additional_issues)
-            print(f" MOCK TOOL LOG (Mechanic): Additional repair needed: {issue}")
-            return f"While performing {maintenance_task}, {issue}. Additional repair is necessary."
-        else:
-            print(f" MOCK TOOL LOG (Mechanic): No additional repairs needed.")
-            return f"Maintenance task '{maintenance_task}' completed successfully. No additional issues found."
-
-# Define a tool for mechanic to communicate with shop manager
-class MechanicToManagerTool(BaseTool):
-    name: str = "Mechanic-Manager Communication Tool"
-    description: str = "Sends a message from the mechanic to the shop manager about availability or status updates."
-
-    def _run(self, message_type: str, details: str) -> str:
-        print(f"\n MOCK TOOL LOG (Mechanic): Sending {message_type} update to manager: {details}")
-        time.sleep(0.2)  # Simulate communication delay
-        
-        # Could be enhanced to actually send to manager agent in a more complex setup
-        responses = {
-            "availability": "Availability update received and logged.",
-            "status": "Status update received and logged.",
-            "repair": "Additional repair notification received and processed."
-        }
-        
-        response = responses.get(message_type.lower(), "Message received.")
-        print(f" MOCK TOOL LOG (Manager): {response}")
-        return f"Manager response: {response}"
-
-# Instantiate mechanic tools
-maintenance_tool = MaintenanceCheckerTool()
-mechanic_comm_tool = MechanicToManagerTool()
+log_header("Defining Mechanic Crew")
 
 # Define Mechanic Agent
 mechanic_agent = Agent(
@@ -385,7 +415,7 @@ mechanic_agent = Agent(
     goal='Perform maintenance tasks efficiently, identify additional repair needs, and communicate clearly with the shop manager.',
     backstory="Experienced mechanic with 15 years in the automotive repair industry. Known for thoroughness and attention to detail.",
     llm=openrouter_llm,
-    tools=[maintenance_tool, mechanic_comm_tool],
+    tools=[maintenance_tool, mechanic_comm_tool, cross_crew_tool],
     verbose=False,
     allow_delegation=False
 )
@@ -480,22 +510,24 @@ mechanic_crew = Crew(
     agents=[mechanic_agent],
     tasks=[task_report_availability, task_perform_maintenance, task_report_status, task_respond_to_manager],
     process=Process.sequential,
-    verbose=0
+    verbose=0  # 詳細出力を無効化
 )
 
 # =============================
 # --- Orchestration ---
 # =============================
 
-print("\n--- Registering Crews ---")
+log_header("Registering Crews")
 # Register the shop crew so the customer crew can find it via the tool
 crew_registry['shop_crew_main'] = shop_crew
 # Register the mechanic crew
 crew_registry['mechanic_crew'] = mechanic_crew
-print(f" Registered crews: {list(crew_registry.keys())}")
+log_step("Registry", f"Registered crews: {list(crew_registry.keys())}")
 
 
-print("\n--- Kicking Off Customer Crew ---")
+log_header("Execution Start")
+log_step("System", "Sending customer request...")
+
 # Running the customer crew will trigger the sequence:
 # 1. Customer agent prepares the message.
 # 2. Customer agent uses the tool to send the message to 'shop_crew_main'.
@@ -507,40 +539,29 @@ print("\n--- Kicking Off Customer Crew ---")
 
 response_from_shop = customer_crew.kickoff()
 
-print("\n--- Primary Crew (Customer) Finished ---")
-print("\nResponse Received by Customer:")
-print(response_from_shop)
+log_header("Customer Request Completed")
+log_response("Shop Response", response_from_shop)
 
-print("\n--- Running Mechanic Crew for Maintenance ---")
-# In a real application, you would extract relevant data from the customer's request and shop's response
+log_header("Starting Maintenance")
 maintenance_info = {
     "maintenance_task": "Check engine light diagnostics and brake inspection", 
     "car_info": "2020 Subaru Outback",
     "priority": "Normal"
 }
 
-# Execute the mechanic crew with maintenance information as input
+# Simplified maintenance info
+log_step("Assignment", f"{maintenance_info['car_info']} - {maintenance_info['maintenance_task']}")
+
 try:
-    print("\nAssigning maintenance task to mechanic...")
     mechanic_result = mechanic_crew.kickoff(inputs=maintenance_info)
     
-    print("\n--- Mechanic Crew Finished ---")
-    print("\nFinal Report from Mechanic:")
-    print(mechanic_result)
+    log_header("Maintenance Complete")
+    log_response("Mechanic Report", mechanic_result)
     
-    print("\n--- Mechanic Report to Customer (via Shop Manager) ---")
-    # In a real application, the shop manager would process the mechanic's report
-    # and create a customer-friendly version to send back to the customer
-    customer_friendly_report = f"""
-    Thank you for bringing in your {maintenance_info['car_info']} for service.
+    # Simplified final report
+    customer_friendly_report = f"Service completed: {maintenance_info['car_info']} {maintenance_info['maintenance_task']} is done. {str(mechanic_result).split('.')[0]}."
     
-    We've completed the diagnostics on the check engine light and inspection of your brakes.
-    
-    {mechanic_result}
-    
-    Please contact us if you have any questions.
-    """
-    print(customer_friendly_report)
+    log_response("Customer Report", customer_friendly_report)
     
 except Exception as e:
-    print(f"\nError running mechanic crew: {e}")
+    print(f"\nError: {e}")
