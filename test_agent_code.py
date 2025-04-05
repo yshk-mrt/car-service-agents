@@ -76,9 +76,9 @@ class CrossCrewCommunicationTool(BaseTool):
 
         # Fix: Get agent information from proper CrewAI context
         try:
-            sender = self.agent.role if hasattr(self, 'agent') and self.agent else "Customer"
+            sender = self.agent.role if hasattr(self, 'agent') and self.agent else "Unknown"
         except:
-            sender = "Customer"  # Fallback name
+            sender = "unknown"  # Fallback name
         
         log_tool(self.name, f"{sender} → {target_crew_id}")
 
@@ -550,17 +550,3 @@ maintenance_info = {
 
 # Simplified maintenance info
 log_step("Assignment", f"{maintenance_info['car_info']} - {maintenance_info['maintenance_task']}")
-
-try:
-    mechanic_result = mechanic_crew.kickoff(inputs=maintenance_info)
-    
-    log_header("Maintenance Complete")
-    log_response("Mechanic Report", mechanic_result)
-    
-    # Simplified final report
-    customer_friendly_report = f"Service completed: {maintenance_info['car_info']} {maintenance_info['maintenance_task']} is done. {str(mechanic_result).split('.')[0]}."
-    
-    log_response("Customer Report", customer_friendly_report)
-    
-except Exception as e:
-    print(f"\nError: {e}")
