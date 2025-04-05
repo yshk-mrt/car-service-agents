@@ -4,6 +4,7 @@ import random
 import time
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import BaseTool
+from pydantic import BaseModel, Field
 
 from langchain_openai import ChatOpenAI
 
@@ -26,6 +27,12 @@ crew_registry = {}
 
 # --- Define Custom Tools ---
 
+# Pydantic model for CrossCrewCommunicationTool input validation
+class CrossCrewInput(BaseModel):
+    """Input schema for CrossCrewCommunicationTool."""
+    target_crew_id: str = Field(..., description="The registered ID of the crew to talk to")
+    message: str = Field(..., description="The content to send to the target crew")
+
 # Tool for Crew 1 (Customer) to talk to Crew 2 (Shop)
 class CrossCrewCommunicationTool(BaseTool):
     name: str = "Cross-Crew Communication Tool"
@@ -34,15 +41,17 @@ class CrossCrewCommunicationTool(BaseTool):
         "and returns its response. Input must be a dictionary with 'target_crew_id': string "
         "(the registered ID of the crew to talk to) and 'message': string (the content to send)."
     )
+    args_schema: type[BaseModel] = CrossCrewInput
 
-    def _run(self, **kwargs) -> str:
-        target_crew_id = kwargs.get("target_crew_id")
-        message = kwargs.get("message")
-
+    def _run(self, target_crew_id: str, message: str) -> str:
         if not target_crew_id or not message:
             return "Error: 'target_crew_id' and 'message' are required inputs."
 
-        print(f"\n MOCK TOOL LOG: Attempting communication from '{self.agent.role}' to Crew ID '{target_crew_id}'...")
+        # Check if the agent is assigned to this tool
+        agent_name = getattr(self, 'agent', None)
+        sender = "Unknown" if agent_name is None else self.agent.role
+        
+        print(f"\n MOCK TOOL LOG: Attempting communication from '{sender}' to Crew ID '{target_crew_id}'...")
 
         target_crew = crew_registry.get(target_crew_id)
         if not target_crew:
@@ -162,6 +171,18 @@ task2_send_request_and_get_response = Task(
         Use the 'Cross-Crew Communication Tool' to send this message to the crew registered
         with the ID 'shop_crew_main'.
 
+        When using the Cross-Crew Communication Tool, you MUST provide these two parameters:
+        1. 'target_crew_id': which should be exactly 'shop_crew_main'
+        2. 'message': which should be the complete message from your previous task
+
+        Example of how to use the tool correctly:
+        ```
+        target_crew_id: "shop_crew_main"
+        message: "Hello, I have a 2020 Subaru Outback and I'm experiencing issues..."
+        ```
+
+        Do not modify or summarize the message - send the exact message you created in the previous task.
+        
         Your final output should be ONLY the response received back from the 'shop_crew_main'.
     """,
     expected_output="The response message received from the shop crew via the communication tool.",
