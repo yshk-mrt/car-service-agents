@@ -2,24 +2,22 @@ import os
 import json
 import random
 import time
-from crewai import Agent, Task, Crew, Process
+from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import BaseTool
+
 from langchain_openai import ChatOpenAI
 
 # --- Environment Setup for OpenRouter ---
-openrouter_api_key = ""
+openrouter_api_key = os.environ.get("openrouter_api_key", "")
 openrouter_model_name = "openrouter/openai/gpt-4o-2024-11-20"
 
 print(f"--- Configuring LLM for OpenRouter: {openrouter_model_name} ---")
-openrouter_llm = ChatOpenAI(
-    model=openrouter_model_name,
-    openai_api_key=openrouter_api_key,
-    openai_api_base="https://openrouter.ai/api/v1",
-    max_tokens=500, temperature=0.7,
-    default_headers={
-        "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "CrewAI Cross-Crew Comm",
-    }
+openrouter_llm = LLM(
+    model="openrouter/openai/gpt-4o-2024-11-20",  # Format: provider/model
+    base_url="https://openrouter.ai/api/v1",
+    api_key=openrouter_api_key,
+    max_tokens=500,
+    temperature=0.7
 )
 
 # --- Simple Crew Registry ---
