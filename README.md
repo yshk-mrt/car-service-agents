@@ -1,1 +1,1 @@
-Demo: https://mefyi.com/hack
+Demo: [mefyi.com/hack](https://mefyi.com/hack)
