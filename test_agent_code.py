@@ -385,7 +385,7 @@ mechanic_agent = Agent(
     goal='Perform maintenance tasks efficiently, identify additional repair needs, and communicate clearly with the shop manager.',
     backstory="Experienced mechanic with 15 years in the automotive repair industry. Known for thoroughness and attention to detail.",
     llm=openrouter_llm,
-    tools=[maintenance_tool, mechanic_comm_tool, cross_crew_tool],
+    tools=[maintenance_tool, mechanic_comm_tool],
     verbose=False,
     allow_delegation=False
 )
