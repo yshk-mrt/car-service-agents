@@ -26,6 +26,8 @@ A Streamlit-based application that implements a multi-agent chat system using Go
 
 The system demonstrates how multiple AI and human agents can coordinate in a shared environment with different roles and capabilities.
 
+![Demo 1 - Multi-Agent Chat Interface](image/demo1.png)
+
 ### Demo 2: Car Service Workflow (agent2.py)
 
 A simulation of an automotive repair service workflow using CrewAI. The system models the interactions between:
@@ -43,6 +45,8 @@ The workflow includes:
 6. Service completion and customer pickup
 
 This demo showcases how agent-based systems can model complex business processes with multiple stakeholders, specialized tools, and sequential workflows.
+
+![Demo 2 - Car Service Workflow](image/demo2.png)
 
 ## Getting Started
 
