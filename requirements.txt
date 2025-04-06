@@ -1,0 +1,12 @@
+# Demo 1 (hack.py) requirements
+streamlit>=1.30.0  # Note: Install when needed
+google-generativeai==0.8.4
+
+# Demo 2 (agent2.py) requirements
+crewai==0.108.0
+langchain-openai==0.3.12
+pydantic==2.11.2
+pydantic-settings==2.8.1
+
+# Common utils
+python-dotenv==1.1.0 

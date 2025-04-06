@@ -51,3 +51,28 @@ This demo showcases how agent-based systems can model complex business processes
 ## Getting Started
 
 To run either demo, install the required dependencies and configure the necessary API keys as specified in each file.
+
+### Environment Setup
+
+1. Copy the `.env.example` file to a new file named `.env`:
+   ```
+   cp .env.example .env
+   ```
+
+2. Edit the `.env` file and replace the placeholder values with your actual API keys:
+   - Get an OpenRouter API key from [OpenRouter](https://openrouter.ai/) for the CrewAI car service demo
+   - Get a Gemini API key from [Google AI Studio](https://ai.google.dev/) for the chat demo
+
+3. Install the required dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+4. Run the desired demo:
+   ```
+   # For Demo 1 (Multi-Agent Chat)
+   streamlit run hack.py
+   
+   # For Demo 2 (Car Service Workflow)
+   python agent2.py
+   ```
